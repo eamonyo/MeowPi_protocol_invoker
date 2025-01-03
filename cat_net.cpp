@@ -174,32 +174,65 @@ void CatNet::close(const websocketpp::connection_hdl& hdl) {
 
 void CatNet::message(const websocketpp::connection_hdl&,
              const websocketpp::client<websocketpp::config::asio_tls_client>::message_ptr& msg) {
-    std::string payload = msg->get_payload();
-    const auto *buf = reinterpret_cast<const unsigned char *>(payload.c_str());
+    const auto* payload = reinterpret_cast<const unsigned char*>(msg->get_payload().data());
+    size_t payload_size = msg->get_payload().size();
 
-    HidData hid_data{};
-    if (payload.size() >= sizeof(HidData)) {
-        std::memcpy(&hid_data, buf, sizeof(HidData));
-    } else {
-        return;
+    auto type = static_cast<DataType>(payload[0]);
+
+    if (type == DataType::CMD_DATA) {
+        if (payload_size != 1 + sizeof(CmdData)) {
+            return;
+        }
+        CmdData data{};
+        std::memcpy(&data, payload + 1, sizeof(CmdData));
+
+        if (data.cmd == sent_cmd) {
+            std::unique_lock<std::mutex> lock(mtx_ack);
+            ack_code = SUCCESS;
+            waiting_for_ack = false;
+            cv.notify_one();
+        } else {
+            std::unique_lock<std::mutex> lock(mtx_ack);
+            ack_code = RECEIVE_ACK_FAILED;
+            waiting_for_ack = false;
+            cv.notify_one();
+        }
+    } else if (type == DataType::HID_DATA) {
+        if (payload_size != 1 + sizeof(HidData)) {
+            return;
+        }
+
+        HidData hid_data{};
+        std::memcpy(&hid_data, payload + 1, sizeof(HidData));
+
+        mouse_state.updateKeyState(hid_data.mouse_data.code, hid_data.mouse_data.value);
+        mouse_state.updateAxis(hid_data.mouse_data.mouseEvent.x, hid_data.mouse_data.mouseEvent.y, hid_data.mouse_data.mouseEvent.wheel);
+
+        keyboard_state.updateKeyState(hid_data.keyboard_data.code, hid_data.keyboard_data.value);
+        lock_state = hid_data.keyboard_data.lock;
     }
-
-    mouse_state.updateKeyState(hid_data.mouse_data.code, hid_data.mouse_data.value);
-    mouse_state.updateAxis(hid_data.mouse_data.mouseEvent.x, hid_data.mouse_data.mouseEvent.y, hid_data.mouse_data.mouseEvent.wheel);
-
-    keyboard_state.updateKeyState(hid_data.keyboard_data.code, hid_data.keyboard_data.value);
-    lock_state = hid_data.keyboard_data.lock;
 }
 
 CatNet::ErrorCode CatNet::sendCmd(CmdData data) {
     unsigned char cmd_buf[sizeof(CmdData)];
     memcpy(cmd_buf, &data, sizeof(CmdData));
+
+    sent_cmd = data.cmd;
     websocketpp::lib::error_code ec;
     client.send(server_hdl, cmd_buf, sizeof(CmdData),websocketpp::frame::opcode::binary, ec);
     if (ec) {
         return SEND_FAILED;
     }
-    return SUCCESS;
+    {
+        std::unique_lock<std::mutex> lock(mtx_ack);
+        ack_code = SEND_FAILED;
+        waiting_for_ack = true;
+        if (cv.wait_for(lock, std::chrono::seconds(1), [this] { return !waiting_for_ack; })) {
+            return ack_code;
+        } else {
+            return RECEIVE_TIMEOUT;
+        }
+    }
 }
 
 CatNet::ErrorCode CatNet::mouseMove(int16_t x, int16_t y) {

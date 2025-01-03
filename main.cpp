@@ -3,14 +3,14 @@
 #include "cat_net.h"
 
 int main() {
-     std::string cert_chain = R"()";
+     std::string client_pem = R"()";
 
-    std::string private_key = R"()";
+    std::string client_key = R"()";
 
-    std::string ca_cert = R"()";
+    std::string ca_pem = R"()";
 
     CatNet cat_net;
-    CatNet::ErrorCode err = cat_net.run("192.168.7.2", 12345, cert_chain, private_key, ca_cert, 5000);
+    CatNet::ErrorCode err = cat_net.run("192.168.7.1", 12345, client_pem, client_key, ca_pem, 5000);
     std::cout << "code:" << err << std::endl;
     if (err != CatNet::SUCCESS) {
         return 0;

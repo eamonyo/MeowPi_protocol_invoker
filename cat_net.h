@@ -27,6 +27,11 @@ private:
     static constexpr uint8_t CMD_MOUSE_MOVE              = 0x08;
     static constexpr uint8_t CMD_MOUSE_AUTO_MOVE         = 0x09;
 
+    enum class DataType : uint8_t {
+        CMD_DATA = 1,
+        HID_DATA = 2,
+    };
+
 #pragma pack(1)
     struct CmdData {
         uint8_t cmd;
@@ -159,6 +164,13 @@ public:
          * 表示在规定时间内没有接收到数据，发生超时错误。
          */
         RECEIVE_TIMEOUT = 104,
+
+        /**
+         * @brief ack错误
+         *
+         * 表示回复的命令不符合。
+         */
+        RECEIVE_ACK_FAILED = 105,
 
         /**
          * @brief 初始化失败
@@ -338,6 +350,12 @@ private:
     websocketpp::client<websocketpp::config::asio_tls_client> client;
     websocketpp::connection_hdl server_hdl;
     std::thread client_thread;
+
+    bool waiting_for_ack = false;
+    uint8_t sent_cmd = 0;
+    ErrorCode ack_code;
+    std::mutex mtx_ack;
+    std::condition_variable cv_ack;
 
     MouseStateManager mouse_state;
     KeyStateManager keyboard_state;
