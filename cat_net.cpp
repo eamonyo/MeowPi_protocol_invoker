@@ -158,6 +158,25 @@ CatNet::ErrorCode CatNet::sendCmd(CmdData data, int milliseconds) {
     }
 
     try {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(send_socket.native_handle(), &read_fds);
+        timeval timeout = { 0, 0 };
+        int sock_fd = static_cast<int>(send_socket.native_handle());
+
+        while (true) {
+            int result = select(sock_fd + 1, &read_fds, nullptr, nullptr, &timeout);
+            if (result > 0) {
+                std::array<char, 1024> recv_buf{};
+                asio::error_code ec;
+                size_t len = send_socket.receive_from(asio::buffer(recv_buf), box_endpoint, 0, ec);
+                if (len > 0) {
+                }
+            } else if (result == 0) {
+                break;
+            }
+        }
+
         std::size_t size = send_socket.send_to(asio::buffer(encrypt_buf, encrypt_len), box_endpoint);
         if (size <= 0) {
             return SEND_FAILED;
@@ -190,7 +209,7 @@ CatNet::ErrorCode CatNet::mouseMoveAuto(int16_t x, int16_t y, int16_t ms) {
     cmd_data.options = ms;
     cmd_data.value1 = x;
     cmd_data.value2 = y;
-    return sendCmd(cmd_data);
+    return sendCmd(cmd_data, ms + 300);
 }
 
 CatNet::ErrorCode CatNet::mouseButton(uint16_t code, uint16_t value) {

@@ -9,6 +9,7 @@ int main() {
     err = cat_net.monitor(1234);
     std::cout << "code:" << err << std::endl;
     cat_net.blockedKeyboard(KEY_A, 1);
+    cat_net.blockedMouse(BTN_LEFT, 1);
     while (1) {
         if (cat_net.isKeyboardPressed(KEY_A)) {
             std::cout << "KEY_A down" << std::endl;
@@ -16,7 +17,7 @@ int main() {
         }
         if (cat_net.isMousePressed(BTN_LEFT)) {
             std::cout << "BTN_LEFT down" << std::endl;
-            cat_net.mouseMove(10, -10);
+            err = cat_net.mouseMoveAuto(100, 100, 100);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }

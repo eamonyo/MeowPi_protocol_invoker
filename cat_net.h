@@ -342,7 +342,7 @@ private:
 private:
     void startReceive();
 
-    ErrorCode sendCmd(CmdData data, int milliseconds = 200);
+    ErrorCode sendCmd(CmdData data, int milliseconds = 300);
 
     void hidHandle(std::size_t receive_len);
 
